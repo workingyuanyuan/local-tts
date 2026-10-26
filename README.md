@@ -1,46 +1,89 @@
 # local-tts
 
-本地 TTS 服務，讓 Claude Code、Codex 等 Agent 依任務需求生成旁白語音。第一版模型：MOSS-TTS-Local-Transformer-v1.5。
+讓 Claude Code、Codex 等 coding agent 用本機 GPU 自己生成旁白語音的 TTS 服務。第一版模型：[MOSS-TTS-Local-Transformer-v1.5](https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5)。
 
-架構與設計約束見 [CLAUDE.md](CLAUDE.md)；實測紀錄：[第 1 步](docs/step1-report.md)、[第 2 步](docs/step2-report.md)、[第 3 步](docs/step3-report.md)、[第 4 步](docs/step4-report.md)、[發布前稽核](docs/final-audit.md)。
+## 這是什麼？
+
+請 coding agent 做「有旁白的短片」「可以用聽的教材」「簡報配音」這類工作時，它需要一個能把文字變成語音的工具。local-tts 就是這個工具，而且完全在你自己的電腦上執行：
+
+- **Agent 會自己判斷何時使用**：裝好之後，不必在 prompt 裡提到 TTS。任務需要聲音時，Agent 會依安裝的使用規則自行呼叫；只要文字稿的任務則不會觸發。
+- **三種使用方式**：
+  - MCP 工具 `tts-mcp`：給 Claude Code、Codex 等 Agent 用。
+  - 命令列 `tts`。
+  - HTTP API：部分相容 OpenAI 的 `/v1/audio/speech`。
+- **本機生成**：用自己的 NVIDIA GPU 推論，文字與音訊都不會離開這台電腦，也不需要任何雲端 API 金鑰。
+- **適合長篇旁白**：
+  - 依句子切段、拼接，支援 `[pause 1.5s]` 停頓標記與聲音克隆。
+  - 截斷或疑似漏句時自動重試。
+  - 長時間的工作用工作 ID 接續，不會因 Agent 逾時而重複生成。
+- **輸出交給後續流程**：直接寫成 wav、flac 或 mp3 檔，放在任務的專案目錄裡，可以接著用 ffmpeg 合成影片。
+
+```
+Agent ──MCP stdio──▶ tts-mcp ─┐
+      ──shell──────▶ tts CLI ─┤  HTTP
+                              ▼
+                    tts-server（常駐服務，單一 GPU worker＋有界佇列）
+```
+
+修改本 repo 時的規則見 [AGENTS.md](AGENTS.md)。開發過程的實測紀錄：[第 1 步](docs/step1-report.md)、[第 2 步](docs/step2-report.md)、[第 3 步](docs/step3-report.md)、[第 4 步](docs/step4-report.md)、[發布前稽核](docs/final-audit.md)。
+
+## 需求
+
+| 項目 | 需求 |
+|---|---|
+| 作業系統 | Linux x86_64（原生或 WSL2）。常駐服務建議使用 systemd，沒有 systemd 時可以前景執行 |
+| GPU | NVIDIA GPU，需支援 bf16（Ampere／RTX 30 系列或更新）。建議顯存 16 GB 以上：第 1 步量到短句生成時的峰值 12.3 GiB（PyTorch reserved）；第 2 步長文實測時，整卡取樣最高 14,388 MiB，扣除其他程序推估服務約佔 13.3 GiB。16 GB 的卡沒有實測過 |
+| 驅動 | 支援 CUDA 12.8 的 NVIDIA 驅動（Linux 570 以上）；PyTorch 自帶 CUDA runtime，不需另裝 CUDA Toolkit |
+| 磁碟 | 權重約 16.5 GiB（放在 `~/.cache/huggingface/`；實測模型 8.5 GiB、codec 8.0 GiB），`.venv` 約 7.3 GiB |
+| 工具 | `git`、`ffmpeg`（Ubuntu：`sudo apt-get install ffmpeg`）、[uv](https://docs.astral.sh/uv/) |
+
+只在 RTX 5090 Laptop（24 GB，WSL2 Ubuntu）上完整實測過。其他 GPU 若符合上述需求應可執行，但效能與顯存用量可能不同。
 
 ## 安裝
 
-需求：WSL2 Ubuntu（systemd 啟用）、NVIDIA 驅動、`ffmpeg`（`sudo apt-get install ffmpeg`）、[uv](https://docs.astral.sh/uv/)。
-
 ```bash
-git clone --recurse-submodules <本 repo 的 URL> ~/Projects/local-tts   # MOSS-TTS 是固定在 934d682 的 submodule
-cd ~/Projects/local-tts
+git clone --recurse-submodules https://github.com/workingyuanyuan/local-tts.git   # MOSS-TTS 是固定在 934d682 的 submodule
+cd local-tts                                 # 可以放在任何位置；以下指令都在專案根目錄執行
 UV_HTTP_TIMEOUT=600 uv sync --frozen        # 依 uv.lock 建立 .venv（Python 3.12）
-# 下載固定 revision 的權重到 ~/.cache/huggingface/（約 18 GB）
+# 下載固定 revision 的權重到 ~/.cache/huggingface/（約 16.5 GiB）
 uvx --from huggingface_hub hf download OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5 --revision be7766a6735b98bd793f7c79fb720b4d0f5d13b8
 uvx --from huggingface_hub hf download OpenMOSS-Team/MOSS-Audio-Tokenizer-v2 --revision f6e20e543b33d2c252a7ef71bdf8aa71e5ff9169
+scripts/install_service.sh                  # 安裝並啟動 systemd user service（見下節）
+mkdir -p ~/.local/bin && ln -sfn "$PWD/.venv/bin/tts" ~/.local/bin/tts   # 選用：讓 tts 可直接執行（~/.local/bin 需在 PATH 中）
+claude mcp add -s user local-tts -- "$PWD/.venv/bin/tts-mcp"   # 註冊給 Claude Code
+codex mcp add local-tts -- "$PWD/.venv/bin/tts-mcp"            # 註冊給 Codex
+scripts/install_agent_rules.sh              # 安裝 Agent 使用規則（見「Agent 使用規則」）
+.venv/bin/tts health                        # 確認服務正常
 ```
 
-已 clone 但沒有 submodule 時補跑 `git submodule update --init third_party/MOSS-TTS`（不需要 MOSS-TTS 自己的 submodule）。`deploy/local-tts.service` 假設專案位於 `~/Projects/local-tts`；放在其他位置時改 service 檔的 `WorkingDirectory` 與 `ExecStart`。
+已 clone 但沒有 submodule 時，補跑 `git submodule update --init third_party/MOSS-TTS`（不需要 MOSS-TTS 自己的 submodule）。只想用其中一種 Agent 時，略過另一個的註冊即可。
 
 套件來源由 `pyproject.toml` 固定：torch/torchaudio 來自 PyTorch cu128 index；torchcodec 用 PyPI 的 CPU 版（cu128 版需要 NVIDIA NPP，而我們只處理音訊）。
 
 ## 啟動／停止（systemd user service）
 
+`scripts/install_service.sh` 會把 `deploy/local-tts.service` 中的專案路徑換成目前 checkout 的位置，安裝到 `~/.config/systemd/user/`，設定登入後自動啟動，並以目前的程式（重新）啟動服務。專案路徑不可含空白、`%`、引號或反斜線。
+
+搬移專案目錄後，`.venv` 內的執行檔仍指向舊位置，要依序重做：
+1. 重建環境：`rm -rf .venv && uv sync --frozen`。
+2. 安裝服務：`scripts/install_service.sh`。
+3. 用新路徑重新註冊 MCP：先執行 `claude mcp remove -s user local-tts` 與 `codex mcp remove local-tts`，再照「安裝」一節註冊。
+4. 重建 `tts` 連結，並執行 `scripts/install_agent_rules.sh`（規則中含有專案路徑）。
+
 ```bash
-mkdir -p ~/.config/systemd/user
-cp deploy/local-tts.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now local-tts     # 啟動並設定登入後自動啟動
 systemctl --user restart local-tts          # 重啟（改了 config/*.yaml 後需要）
 systemctl --user stop local-tts             # 停止
 systemctl --user status local-tts
 ```
 
 - 日誌：`journalctl --user -u local-tts -f`
-- 健康檢查：`curl -s localhost:8765/health`
-- 服務只在 WSL 執行期間運作；模型延遲載入（第一個請求才載入，約 10–20 秒），閒置 10 分鐘後自動卸載。
-- 前景執行（除錯）：`HF_HUB_OFFLINE=1 .venv/bin/tts-server`
+- 健康檢查：`curl -s localhost:8765/health`（埠可用 `config/server.yaml` 或環境變數 `LOCAL_TTS_PORT` 修改；client 端用 `LOCAL_TTS_URL`）
+- 模型延遲載入：第一個請求才載入，約 10–20 秒；閒置 10 分鐘後自動卸載。
+- 沒有 systemd 或要除錯時，改為前景執行：`HF_HUB_OFFLINE=1 .venv/bin/tts-server`
+- user service 預設只在使用者登入期間執行；要開機常駐，執行 `sudo loginctl enable-linger $USER`。WSL 中，服務只在 WSL 執行期間運作。
+- 多張 GPU 時，可在 service 檔加入 `Environment=CUDA_VISIBLE_DEVICES=1`，指定要用哪一張。
 
 ## CLI：`tts`
-
-`~/.local/bin/tts` 連結到 `.venv/bin/tts`（在專案根目錄執行 `ln -sfn "$PWD/.venv/bin/tts" ~/.local/bin/tts`）。
 
 ```bash
 tts say "你好，歡迎收看。" -l zh -o /abs/path/hello.wav            # 等到完成，印出路徑與時長
@@ -50,7 +93,7 @@ tts job <job_id> --wait -o /abs/out.wav                           # 等待並取
 tts models | tts voices [-m MODEL] | tts health
 ```
 
-- `-o` 必須是絕對路徑，Windows 路徑（`C:\...`）會用 `wslpath` 轉換；副檔名決定格式（.wav／.flac／.mp3）
+- `-o` 必須是絕對路徑；在 WSL 中，Windows 路徑（`C:\...`）會用 `wslpath` 轉換（非 WSL 環境回 `invalid_path`）；副檔名決定格式（.wav／.flac／.mp3）
 - 目標已存在時報錯，加 `--overwrite` 才覆寫；未指定 `-o` 時寫到 `~/.local/share/local-tts/output/<timestamp>.wav`
 - `--json` 輸出機器可讀結果；錯誤一律以 JSON 印到 stderr；結果有 `warnings`（可能漏句）時，文字模式會印到 stderr
 - exit code：0 完成、1 錯誤、2 用法錯誤、3 仍在處理（`--no-wait` 或 `--timeout` 到期，工作會繼續執行）
@@ -119,7 +162,7 @@ Codex 另在 `~/.codex/config.toml` 的 `[mcp_servers.local-tts]` 設 `tool_time
 |---|---|---|
 | `input` | ✔ | 要朗讀的文字（上限 20000 字元）。支援 `[pause 1.5s]` 停頓標記；空行視為段落 |
 | `model` | | 省略時用 `models.yaml` 的 `default` |
-| `voice` | | 省略時不克隆，用模型預設音色 |
+| `voice` | | 省略時不使用已註冊的聲音；同一次呼叫內，以第一個合格片段作為後續片段的參考，維持音色一致 |
 | `response_format` | | `wav`（預設，16-bit PCM）、`flac`、`mp3` |
 | `language` | | **擴充欄位**：語言代碼或名稱（`zh`、`en`、`Chinese`…）；已知語言時建議提供 |
 | `seed` | | **擴充欄位**：整數亂數種子（0 至 2³²−1） |
@@ -181,7 +224,7 @@ curl -s localhost:8765/v1/audio/speech -H 'Content-Type: application/json' \
 - 反例：沒有任何工具呼叫或 CLI／HTTP 存取，服務日誌也沒有工作入列；
 - 每段音檔與成品影片都以 ASR 和 Agent 送出的文字比對。
 
-工作目錄需在本專案之外（避免讀到本專案的 CLAUDE.md），且須為新目錄或此腳本建立過的目錄。成品與 ASR 都以 `<輸出目錄>` 下經雜湊驗證的副本為準；`STEP4_RECHECK=1` 只重跑檢查，但需要原工作目錄仍在（放在 `/tmp` 時，WSL 重啟後就會消失）。ASR 未解決的項目需要有人聆聽，並記錄在 `<輸出目錄>/<agent>/asr_review.tsv`；只有結論為 `ok` 才會放行。
+工作目錄需在本專案之外（避免讀到本專案的 AGENTS.md／CLAUDE.md），且須為新目錄或此腳本建立過的目錄。成品與 ASR 都以 `<輸出目錄>` 下經雜湊驗證的副本為準；`STEP4_RECHECK=1` 只重跑檢查，但需要原工作目錄仍在（放在 `/tmp` 時，重開機後就會消失）。ASR 未解決的項目需要有人聆聽，並記錄在 `<輸出目錄>/<agent>/asr_review.tsv`；只有結論為 `ok` 才會放行。
 
 ASR 比對（`scripts/asr_compare.py`）會把每個漏字、多字的地方剪出來重新轉寫確認，以排除 Whisper 自身的跳字與幻覺。驗證比對本身：`scripts/asr_validation.sh outputs/step4/asr_validation`（已知缺陷必須判 FAIL、正常音檔必須判 PASS）。驗證集與所有實測產物都在 `outputs/`，因內含本機路徑與大型音訊而不納入 repo；報告（`docs/`）記錄了結果。
 

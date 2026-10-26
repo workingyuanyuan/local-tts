@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import shutil
 import time
 
 import httpx
@@ -33,8 +34,6 @@ def test_resolve_output_path(tmp_path, monkeypatch):
     assert p.parent == tmp_path and p.suffix == ".wav" and fmt == "wav"
     assert resolve_output_path("/a/b.MP3", None) == (resolve_output_path("/a/b.MP3", None)[0], "mp3")
     assert resolve_output_path("/a/b", "flac")[0].name == "b.flac"
-    win, _ = resolve_output_path(r"C:\Users\me\narration.wav", None)
-    assert str(win) == "/mnt/c/Users/me/narration.wav"
     for bad, code in [("rel/out.wav", "invalid_path"), ("/a/b.ogg", "unsupported_format")]:
         with pytest.raises(ClientError) as e:
             resolve_output_path(bad, None)
@@ -42,6 +41,19 @@ def test_resolve_output_path(tmp_path, monkeypatch):
     with pytest.raises(ClientError) as e:
         resolve_output_path("/a/b.wav", "mp3")
     assert e.value.code == "format_mismatch"
+
+
+@pytest.mark.skipif(shutil.which("wslpath") is None, reason="WSL only")
+def test_windows_path_under_wsl():
+    win, _ = resolve_output_path(r"C:\Users\me\narration.wav", None)
+    assert str(win) == "/mnt/c/Users/me/narration.wav"
+
+
+def test_windows_path_without_wsl_is_a_clear_error(monkeypatch):
+    monkeypatch.setenv("PATH", "/nonexistent")
+    with pytest.raises(ClientError) as e:
+        resolve_output_path(r"C:\Users\me\narration.wav", None)
+    assert e.value.code == "invalid_path" and "only supported under WSL" in e.value.message
 
 
 def test_write_file_never_clobbers_without_overwrite(tmp_path):

@@ -52,7 +52,7 @@ class ModelManager:
             if self.current is target and target.loaded:
                 return target
             if self.current is not None:
-                # 24 GB is not guaranteed to hold two models: unload before switching.
+                # One GPU is not guaranteed to hold two models: unload before switching.
                 log.info("unloading %s before loading %s", self.current.entry.id, model_id)
                 self.current.unload()
                 self.current = None

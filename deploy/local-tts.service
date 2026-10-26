@@ -4,8 +4,9 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/Projects/local-tts
-ExecStart=%h/Projects/local-tts/.venv/bin/tts-server
+# Template: scripts/install_service.sh fills in the checkout's absolute path below.
+WorkingDirectory={{LOCAL_TTS_ROOT}}
+ExecStart={{LOCAL_TTS_ROOT}}/.venv/bin/tts-server
 # Weights are pinned by revision and already cached; never reach the network at runtime.
 Environment=HF_HUB_OFFLINE=1
 Environment=TQDM_DISABLE=1

@@ -7,7 +7,7 @@
 # Assertions live in scripts/step4_check.py; any parse or checker failure is a FAIL.
 # Usage: scripts/step4_run.sh <work_dir> <out_dir> [task...]
 #   work_dir  where the agents work: a new or empty directory (or one this script created before),
-#             outside this repo (its CLAUDE.md would leak context). Task subdirectories are recreated.
+#             outside this repo (its AGENTS.md / CLAUDE.md would leak context). Task subdirectories are recreated.
 #   out_dir   logs, evidence, assertions and copies of the products
 #   task      subset of: claude_video claude_reading claude_negative codex_video codex_reading codex_negative
 # Everything, both agents at once (also exercises the GPU queue): scripts/step4_all.sh

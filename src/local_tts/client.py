@@ -1,7 +1,7 @@
 """HTTP client for tts-server, shared by the `tts` CLI and the `tts-mcp` server.
 
 The server only returns audio; this module writes it to the caller's path:
-- paths must be absolute; Windows paths (C:\\..., \\\\wsl$\\...) are converted with `wslpath`
+- paths must be absolute; Windows paths (C:\\..., \\\\wsl$\\...) are converted with `wslpath` (WSL only)
 - an existing target is an error unless overwrite=True
 - no path -> ~/.local/share/local-tts/output/<timestamp>.<format>
 - the format follows the file extension (.wav/.flac/.mp3) unless given explicitly
@@ -108,7 +108,11 @@ def resolve_output_path(path: Optional[str], fmt: Optional[str]) -> tuple[Path, 
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3]
         return OUTPUT_DIR / f"{stamp}.{fmt}", fmt
     if WINDOWS_PATH_RE.match(path):
-        proc = subprocess.run(["wslpath", "-u", path], capture_output=True, text=True)
+        try:
+            proc = subprocess.run(["wslpath", "-u", path], capture_output=True, text=True)
+        except FileNotFoundError:  # not WSL: there is no Windows filesystem to map to
+            raise ClientError("invalid_path", f"Windows path '{path}' is only supported under WSL "
+                              "(wslpath not found); give a Linux absolute path.") from None
         if proc.returncode != 0:
             raise ClientError("invalid_path", f"Cannot convert Windows path '{path}': {proc.stderr.strip()}")
         path = proc.stdout.strip()

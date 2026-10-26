@@ -45,6 +45,10 @@ class MossLocalAdapter(Adapter):
         from huggingface_hub import snapshot_download
         from transformers import AutoModel, AutoProcessor
 
+        if not torch.cuda.is_available():
+            raise RuntimeError("MOSS-TTS needs an NVIDIA GPU with CUDA, but torch sees none "
+                               "(check `nvidia-smi` and the driver; CUDA 12.8 needs driver 570 or newer).")
+
         # Official SDPA setup: cuDNN SDPA off, the other backends on.
         torch.backends.cuda.enable_cudnn_sdp(False)
         torch.backends.cuda.enable_flash_sdp(True)
