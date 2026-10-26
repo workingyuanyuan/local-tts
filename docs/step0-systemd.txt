@@ -1,0 +1,18 @@
+## 2026-10-21T13:53:01+08:00
+$ systemctl is-system-running
+running
+$ systemctl --user is-system-running
+running
+$ systemctl --failed --no-legend
+$ systemctl --user --failed --no-legend
+$ cat /etc/wsl.conf
+[boot]
+systemd=true
+
+[user]
+default=<user>
+
+[interop]
+appendWindowsPath=false
+$ ps -p 1 -o comm=
+systemd

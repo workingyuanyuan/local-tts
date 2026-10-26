@@ -1,0 +1,13 @@
+local-tts
+
+This project depends on MOSS-TTS (https://github.com/OpenMOSS/MOSS-TTS), included as a git
+submodule at third_party/MOSS-TTS (commit 934d6826b084c46a0d033402174d5f8ac4ed2519), and loads the
+OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5 and OpenMOSS-Team/MOSS-Audio-Tokenizer-v2 weights from
+Hugging Face at runtime. MOSS-TTS is licensed under the Apache License, Version 2.0
+(third_party/MOSS-TTS/LICENSE). Copyright OpenMOSS Team, Fudan University, SII and MOSI.
+
+Demo voice reference audio taken from the MOSS-TTS repository (Apache-2.0):
+- assets/voices/demo_zh_female.wav and assets/ref/reference_zh.wav: unchanged copies of
+  assets/audio/reference_zh.wav
+- assets/voices/demo_en.wav: assets/audio/reference_en_0.mp3 (same duration, 6.62 s), converted
+  to 16-bit PCM WAV with ffmpeg

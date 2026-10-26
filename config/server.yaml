@@ -1,0 +1,28 @@
+host: 127.0.0.1
+port: 8765
+# Max requests waiting in the queue (not counting the one running). Full queue → 503 queue_full.
+queue_max: 8
+# Unload the model after this many idle seconds (only when nothing is running and the queue is empty).
+idle_unload_seconds: 600
+# Finished jobs (and their audio) are kept this long for /v1/jobs/{id} polling.
+job_ttl_seconds: 3600
+# Finished audio waiting to be fetched may hold at most this many bytes of RAM (4 GiB); beyond that,
+# new submissions get 503 results_full until jobs expire.
+max_result_bytes: 4294967296
+# /v1/audio/speech waits at most this long, then returns 504 sync_timeout with the job id
+# (the job keeps running; poll /v1/jobs/{id}).
+sync_timeout_seconds: 1800
+
+segmenting:
+  # Pack sentences into segments of at most this many estimated seconds.
+  max_segment_seconds: 30
+  # Silence inserted between segments / between paragraphs (blank line in input).
+  segment_gap_seconds: 0.35
+  paragraph_gap_seconds: 0.8
+  # When no voice is given, reuse the first segment's audio as the reference for later segments
+  # so the speaker stays consistent.
+  unvoiced_consistency: first_segment
+  # Retries per segment for anomalous output (too short / too long vs. estimate).
+  max_retries: 2
+  # Truncated segments are split and retried at most this many levels deep.
+  max_split_depth: 2

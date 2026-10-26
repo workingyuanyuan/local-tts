@@ -1,0 +1,14 @@
+# Environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Run records: local paths, agent transcripts and large audio (summarized in docs/)
+outputs/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

@@ -1,0 +1,13 @@
+Welcome back to the channel. In this episode, we are going to build a small but useful tool: a text to speech service that runs entirely on your own machine.
+
+Why would anyone want that? Cloud voices are convenient, but every request costs money, and every script you send leaves your computer. For a team that produces training videos every week, those costs and privacy concerns add up quickly.
+
+Open models have changed the picture. A single graphics card can now produce natural narration in dozens of languages. The model we are using today outputs stereo audio at forty eight kilohertz, and it can imitate a speaker from just a few seconds of reference recording. [pause 1s]
+
+The system has three parts. First, a long running server owns the graphics card. It queues incoming requests, processes them one at a time, and frees the memory when nobody has used it for a while. Second, a command line tool lets you generate audio files straight from the terminal. Third, a tool interface for coding assistants allows an agent to decide on its own when a task needs narration.
+
+Long scripts need special care. The text is split at sentence boundaries, so that no single chunk is too long for the model. Short silences are inserted between the chunks, and every chunk is checked for truncation. If a chunk was cut off, it is split into smaller pieces and generated again.
+
+So how fast is it? In our tests, one minute of speech takes about forty seconds to generate. That means the narration for a ten minute tutorial is ready in just a few minutes.
+
+That is all for today. If you found this useful, share it with a friend who makes videos. See you next time!

@@ -1,0 +1,20 @@
+[Unit]
+Description=local-tts server (MOSS-TTS, GPU)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects/local-tts
+ExecStart=%h/Projects/local-tts/.venv/bin/tts-server
+# Weights are pinned by revision and already cached; never reach the network at runtime.
+Environment=HF_HUB_OFFLINE=1
+Environment=TQDM_DISABLE=1
+Environment=HF_HUB_DISABLE_PROGRESS_BARS=1
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

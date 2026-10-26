@@ -1,0 +1,22 @@
+# Model registry. `default` is used when a request does not name a model.
+default: moss-tts-local-v1.5
+
+models:
+  moss-tts-local-v1.5:
+    adapter: moss_local
+    description: MOSS-TTS-Local-Transformer-v1.5（約 4B，BF16，48 kHz 立體聲，31 語言）
+    repo: OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5
+    revision: be7766a6735b98bd793f7c79fb720b4d0f5d13b8
+    codec_repo: OpenMOSS-Team/MOSS-Audio-Tokenizer-v2
+    codec_revision: f6e20e543b33d2c252a7ef71bdf8aa71e5ff9169
+    # HF remote code defaults to bf16, the GitHub copy to fp32 — always set it explicitly.
+    codec_weight_dtype: bf16
+    # Official sampling parameters.
+    sampling:
+      audio_temperature: 1.7
+      audio_top_p: 0.8
+      audio_top_k: 25
+      audio_repetition_penalty: 1.0
+    # Hard upper bound on frames per segment (12.5 frames/s). Per-segment budgets are derived
+    # from the estimated duration and never exceed this.
+    max_new_tokens: 4096
