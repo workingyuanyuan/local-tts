@@ -231,3 +231,7 @@ ASR 比對（`scripts/asr_compare.py`）會把每個漏字、多字的地方剪�
 第 3 步實測（服務需在執行中）：`scripts/step3_run.sh outputs/step3/<名稱> [--agents]`，涵蓋 CLI 各種成功／錯誤情境、Windows 路徑、`--no-wait` 後取回，以及經 stdio 驅動 `tts-mcp` 的長文 pending 流程。
 
 第 2 步完整實測（會暫停 systemd 服務、跑完再啟動；約 25 分鐘）：`scripts/step2_run.sh outputs/step2/<名稱>`，包含佇列／FIFO、長文、閒置卸載、強制截斷切分、ASR 回轉比對（`scripts/asr_compare.py`）與說話人一致性（`scripts/speaker_consistency.py`），原始紀錄全部存在輸出目錄。
+
+## 授權
+
+本專案以 [Apache License 2.0](LICENSE) 授權。相依的 MOSS-TTS 與內附的 demo 參考音檔同樣是 Apache-2.0，出處見 [NOTICE](NOTICE)；模型權重從 Hugging Face 下載，依其模型頁面的授權使用。

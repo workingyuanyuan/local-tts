@@ -1,4 +1,6 @@
 local-tts
+Copyright 2026 local-tts contributors
+Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 This project depends on MOSS-TTS (https://github.com/OpenMOSS/MOSS-TTS), included as a git
 submodule at third_party/MOSS-TTS (commit 934d6826b084c46a0d033402174d5f8ac4ed2519), and loads the

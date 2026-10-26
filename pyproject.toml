@@ -3,6 +3,8 @@ name = "local-tts"
 version = "0.1.0"
 description = "Local TTS service for coding agents (MOSS-TTS-Local-Transformer-v1.5 first)"
 requires-python = "==3.12.*"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 dependencies = [
   "moss-tts[torch-runtime]",
   # Pinned by moss-tts[torch-runtime]; listed here so uv.sources can route them to the right index.
